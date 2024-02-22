@@ -48,7 +48,7 @@ export const PinValidation = {
 
 export const TeamValidation = {
   /** The maximum number of domains per instance */
-  maxDomains: ${env.MAX_ALLOWED_DOMAINS},
+  maxDomains: env.MAX_ALLOWED_DOMAINS,
 };
 
 export const UserValidation = {
