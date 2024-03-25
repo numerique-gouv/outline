@@ -176,8 +176,8 @@ export class Environment {
    */
   @IsOptional()
   @IsNumber()
-  public MAX_ALLOWED_DOMAINS = this.toOptionalNumber(process.env.MAX_ALLOWED_DOMAINS) ?? 15;
-
+  public MAX_ALLOWED_DOMAINS =
+    this.toOptionalNumber(process.env.MAX_ALLOWED_DOMAINS) ?? 15;
 
   /**
    * The port that the server will listen on, defaults to 3000.

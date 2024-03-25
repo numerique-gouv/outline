@@ -1,5 +1,6 @@
 import Router from "koa-router";
 import { Op, WhereOptions } from "sequelize";
+import { Model as SequelizeModel } from "sequelize-typescript/dist/model/model/model";
 import { MAX_AVATAR_DISPLAY } from "@shared/constants";
 import auth from "@server/middlewares/authentication";
 import { rateLimiter } from "@server/middlewares/rateLimiter";
@@ -336,5 +337,96 @@ router.post(
     };
   }
 );
+
+router.patch("groups/:id", async (ctx) => {
+  const { id: groupUserId } = ctx.params;
+  const arrayUsers: Array<{ value: number; email: string; type: string }> =
+    ctx.request.body?.["Operations"]?.[0]?.value ?? null;
+  const arrayEmailAddresses: string[] = arrayUsers.map((user) => user.email);
+
+  const arrayUserModels: User[] = await User.findAll({
+    where: {
+      email: arrayEmailAddresses,
+    },
+  });
+
+  let groupUsers = await GroupUser.findOne({
+    where: {
+      groupId: groupUserId,
+    },
+  });
+
+  // const group = await Group.findOne({
+  //   where: {
+  //     id: groupUsers?.groupId,
+  //   },
+  // });
+  //
+
+  let group = await Group.findByPk(groupUsers?.groupId);
+
+  // ctx.body = {
+  //   ok: true,
+  //   groupUsers,
+  //   arrayUserModels,
+  //   group,
+  // };
+
+  const authorId = process.env.DESK_UUID || null;
+
+  if (group instanceof SequelizeModel && authorId) {
+    await Promise.all(
+      arrayUserModels.map(async (userModel) => {
+        let membership = await GroupUser.findOne({
+          where: {
+            groupId: groupUserId,
+            userId: userModel.id,
+          },
+        });
+
+        if (!membership) {
+          if (ctx.request.body?.["Operations"]?.[0]?.op === "add") {
+            await group.$add("user", userModel, {
+              through: {
+                // createdById: actor.id,
+                createdById: authorId,
+              },
+            });
+
+            // reload to get default scope
+            membership = await GroupUser.findOne({
+              where: {
+                groupId: group.id,
+                userId: userModel.id,
+              },
+              rejectOnEmpty: true,
+            });
+            groupUsers = membership;
+
+            // reload to get default scope
+            group = await Group.findByPk(group.id, { rejectOnEmpty: true });
+
+            await Event.create({
+              name: "groups.add_user",
+              userId: userModel.id,
+              teamId: userModel.teamId,
+              modelId: group.id,
+              // actorId: actor.id,
+              actorId: authorId,
+              data: {
+                name: userModel.name,
+              },
+              ip: ctx.request.ip,
+            });
+          }
+        }
+      })
+    );
+  }
+
+  ctx.body = {
+    ok: true,
+  };
+});
 
 export default router;

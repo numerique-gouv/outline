@@ -625,3 +625,12 @@ describe("#groups.remove_user", () => {
     expect(body).toMatchSnapshot();
   });
 });
+
+describe("/groups/:id", () => {
+  it.skip("should respond 'ok'", async () => {
+    const res = await server.post("/api/groups/223");
+    const body = await res.json();
+    expect(body.ok).toBeTruthy();
+    expect(res.status).toEqual(200);
+  });
+});

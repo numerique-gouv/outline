@@ -1,4 +1,5 @@
 import env from "./env";
+
 export const AttachmentValidation = {
   /** The limited allowable mime-types for user and team avatars */
   avatarContentTypes: ["image/jpg", "image/jpeg", "image/png"],
