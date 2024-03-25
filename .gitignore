@@ -12,3 +12,5 @@ data/*
 *.pem
 *.key
 *.cert
+
+.tool-versions
