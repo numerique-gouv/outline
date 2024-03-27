@@ -339,38 +339,32 @@ router.post(
 );
 
 router.patch("groups/:id", async (ctx) => {
-  const { id: groupUserId } = ctx.params;
+  const { id } = ctx.params;
+
   const arrayUsers: Array<{ value: number; email: string; type: string }> =
     ctx.request.body?.["Operations"]?.[0]?.value ?? null;
+
   const arrayEmailAddresses: string[] = arrayUsers.map((user) => user.email);
+
+  let group = await Group.findOne({
+    where: {
+      id,
+    },
+    rejectOnEmpty: true,
+  });
+
+  let groupUsers = await GroupUser.findOne({
+    where: {
+      groupId: id,
+    },
+    // rejectOnEmpty: true,
+  });
 
   const arrayUserModels: User[] = await User.findAll({
     where: {
       email: arrayEmailAddresses,
     },
   });
-
-  let groupUsers = await GroupUser.findOne({
-    where: {
-      groupId: groupUserId,
-    },
-  });
-
-  // const group = await Group.findOne({
-  //   where: {
-  //     id: groupUsers?.groupId,
-  //   },
-  // });
-  //
-
-  let group = await Group.findByPk(groupUsers?.groupId);
-
-  // ctx.body = {
-  //   ok: true,
-  //   groupUsers,
-  //   arrayUserModels,
-  //   group,
-  // };
 
   const authorId = process.env.DESK_UUID || null;
 
@@ -379,7 +373,7 @@ router.patch("groups/:id", async (ctx) => {
       arrayUserModels.map(async (userModel) => {
         let membership = await GroupUser.findOne({
           where: {
-            groupId: groupUserId,
+            groupId: id,
             userId: userModel.id,
           },
         });
@@ -388,36 +382,74 @@ router.patch("groups/:id", async (ctx) => {
           if (ctx.request.body?.["Operations"]?.[0]?.op === "add") {
             await group.$add("user", userModel, {
               through: {
-                // createdById: actor.id,
                 createdById: authorId,
               },
             });
 
-            // reload to get default scope
-            membership = await GroupUser.findOne({
-              where: {
-                groupId: group.id,
-                userId: userModel.id,
-              },
-              rejectOnEmpty: true,
-            });
-            groupUsers = membership;
+            if (group.changed()) {
+              await group.save();
 
-            // reload to get default scope
-            group = await Group.findByPk(group.id, { rejectOnEmpty: true });
+              await Event.create({
+                name: "groups.add_user",
+                userId: userModel.id,
+                teamId: userModel.teamId,
+                modelId: group.id,
+                // actorId: actor.id,
+                actorId: authorId,
+                data: {
+                  name: userModel.name,
+                },
+                ip: ctx.request.ip,
+              });
+
+              // reload to get default scope
+              membership = await GroupUser.findOne({
+                where: {
+                  groupId: group.id,
+                  userId: userModel.id,
+                },
+                // rejectOnEmpty: true,
+              });
+              groupUsers = membership;
+
+              // reload to get default scope
+              group = await Group.findByPk(group.id, { rejectOnEmpty: true });
+            }
+          }
+        }
+
+        if (
+          ctx.request.body?.["Operations"]?.[0]?.op === "remove" &&
+          membership
+        ) {
+          await group.$remove("user", userModel);
+
+          if (group.changed()) {
+            await group.save();
 
             await Event.create({
-              name: "groups.add_user",
+              name: "groups.remove_user",
               userId: userModel.id,
               teamId: userModel.teamId,
               modelId: group.id,
-              // actorId: actor.id,
               actorId: authorId,
               data: {
                 name: userModel.name,
               },
               ip: ctx.request.ip,
             });
+
+            membership = await GroupUser.findOne({
+              where: {
+                groupId: group.id,
+                userId: userModel.id,
+              },
+              // rejectOnEmpty: true,
+            });
+            groupUsers = membership;
+
+            // reload to get default scope
+            group = await Group.findByPk(group.id, { rejectOnEmpty: true });
           }
         }
       })
@@ -426,6 +458,9 @@ router.patch("groups/:id", async (ctx) => {
 
   ctx.body = {
     ok: true,
+    group,
+    groupUsers,
+    arrayUserModels,
   };
 });
 
