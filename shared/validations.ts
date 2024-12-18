@@ -17,6 +17,7 @@ export const AttachmentValidation = {
     "image/svg+xml",
     "image/bmp",
     "image/tiff",
+    "image/heic",
   ],
 };
 
